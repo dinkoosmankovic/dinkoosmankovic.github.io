@@ -1,0 +1,437 @@
+<!-- saved from url=(0044)http://sites.oxy.edu/rnaimi//home/URMsim.htm -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">
+
+<meta http-equiv="Content-Language" content="en-us">
+<meta name="GENERATOR" content="Microsoft FrontPage 6.0">
+<meta name="ProgId" content="FrontPage.Editor.Document">
+<title>Counter Machine Simulator</title>
+<script language="JavaScript">
+
+var outStr; // to be written to the output text box
+var LINE_INDICATOR = ":" ;
+var R = new Array(); // holds Register values
+var curLine; // current number line in main for loop
+var stopWin; // ref to child window for interrupting program
+var totInstructions; // holds total # of performed instructions
+
+
+
+function makeStopWindow(){
+// Open a new window that allows user to stop program in original window
+
+	var tempstr;
+	tempstr='<html><head><title></title></head>';
+	tempstr+='<body><form name="form2">';
+	tempstr+='<input type="button" ';
+	tempstr+='value="Interrupt program" onClick="form2.stopRequest.value=';
+	tempstr+="'yes'";
+	tempstr+=' ;" >';
+//	tempstr+="<br>This window closes automatically. Closing it manually stops the program.";
+	tempstr+='<input type="hidden" name="stopRequest" value="no">';
+	tempstr+='</form></body></html>';
+
+	if(stopWin!=null) stopWin.close();
+	stopWin = window.open("","","width=180,height=30,resizable");
+	stopWin.document.write(tempstr);
+	stopWin.document.close();
+
+}
+
+
+
+
+
+function initializeVars(){
+// resets all registers to null
+// in preparation for runSim()
+// This function is called by the Run button,
+// and not by the Continue button.
+
+	var temp = new Array();
+	R = temp;
+	outStr="";
+	recordRegisterVals(R);
+	form1.continueButton.disabled=true;
+	curLine=1;
+	totInstructions=0;
+
+	return;
+}
+
+
+
+
+
+function runSim() {
+// runs the simulation
+
+
+	var lines = new Array();
+	var nlines; // number of lines in program
+	var progStr=form1.progtext.value +")";
+	// adhoc: add ) for progStr.slice to work in case last ) is missing
+	var r, r2; // hold register numbers
+	var curPos; // holds current position being read in progStr
+	var nextPos; // temporarily holds next value of curPos
+	var showRegs = form1.showRegisters[0].checked; // true if Y is checked
+	var maxRun; // maximum number of instructions to perform
+	var nInstructions; // number of performed instructions
+	var progEnded=false; // is set to true if prog reaches end
+
+
+
+	if( (maxRun=getMaxRun()) == -2) return;
+	progStr=removeSpaces(progStr);
+	progStr=progStr.toUpperCase();
+	nlines=findLines(lines,progStr);
+	if(nlines==0){
+	alert("No readable program lines were found.");
+	return;
+	}
+
+
+
+	makeStopWindow();
+
+	for(nInstructions=0;
+			maxRun==-1 || nInstructions < maxRun; nInstructions++){
+		if(stopWin.form2.stopRequest.value=="yes"){
+		break;
+		}
+		if(curLine > nlines || curLine==0){
+			progEnded=true;
+			form1.continueButton.disabled=true;
+			outStr += "Stop";
+			break;
+		}
+		curPos=lines[curLine];
+		if(progStr.substring(curPos,curPos+3)=="INC"){
+			if(progStr.charAt(curPos+3)!="("){
+				alert("Error in instruction " + curLine +
+					":\n S must be followed by (")
+				break;
+			}
+			curPos+=4; // skip the (
+			if(isNaN(progStr.charAt(curPos))){
+				alert("Error in instruction " + curLine +
+					":\n non-digit found where digit expected.")
+				break;
+			}
+			nextPos = findNextNonDigit(progStr,curPos);
+			r=Number(progStr.slice(curPos,nextPos)); // the register number
+			if(R[r]==null) R[r]=0; // if not set yet, set to zero
+			R[r]+=1; // increment register r
+			if(true) outStr += curLine + ":R" + r + "=" + R[r] + "\n";
+			++curLine;
+		}
+		else if(progStr.substring(curPos,curPos+4)=="DJNZ"){
+			if(progStr.charAt(curPos+4)!="("){
+				alert("Error in instruction " + curLine +
+					":\n DJNZ must be followed by (")
+				break;
+			}
+			curPos+=5; // skip the (
+			if(isNaN(progStr.charAt(curPos))){
+				alert("Error in instruction " + curLine +
+					":\n non-digit found where digit expected.")
+				break;
+			}
+			nextPos = findNextNonDigit(progStr,curPos);
+			r=Number(progStr.slice(curPos,nextPos)); // the register number
+			if(R[r]==null) R[r]=0;
+			if (R[r] != 0) R[r] -= 1;
+			curPos=nextPos;
+			if(progStr.charAt(curPos)!=","){
+				alert("Error in instruction " + curLine +
+					":\n comma expected after first register number")
+				break;
+			}
+			if(R[r] == 0 ){ // jump condition not satisfied
+				if(showRegs) outStr += curLine + ":No jump\n";
+				++curLine;
+				continue;
+			}
+			else {
+				curPos++; // skip the comma
+				nextPos = findNextNonDigit(progStr,curPos);
+				nextLine=Number(progStr.slice(curPos,nextPos)); // the line number to jump to
+				if(showRegs) outStr += curLine + ":Jump to " + nextLine + "\n";
+				curLine=nextLine;
+			}
+		}
+		else {
+			alert("Error in instruction " + curLine +
+				":\n Must use INC and DJNZ.")
+			break;
+		}
+
+	} // end of main for loop
+
+
+	stopWin.close();
+
+	totInstructions+=nInstructions; // update totInstructions
+	if(!progEnded){
+		// if end of program was not reached,
+		// then enable the continue button
+		form1.continueButton.disabled=false;
+		alert("Did not reach end of program; "+
+			nInstructions + " instructions were performed during last run, " +
+			"totalling " + totInstructions + " so far.\n" +
+			"To continue, click the Continue button.\n\n");
+	}
+	else{
+	if(R[1]==null) R[1]=0; // if R1 not set yet, set to zero
+	resStr = ""
+	for (cn = 1; cn < R.length; cn++)
+		resStr += "R" + cn.toString() + "= " + R[cn] + "\n";
+	outStr = ("Output: \n" + resStr + "\n\n" +
+			"Performed " + totInstructions +
+			" instructions:\n\n").concat(outStr); // prepend with output
+	}
+	form1.progoutput.value=outStr;
+}
+
+
+
+
+
+
+
+
+
+
+
+function getMaxRun(){
+// reads value from "Stop after ____ instructions."
+// returns -1 if ""
+// returns -2 if invalid input
+
+
+
+	var str=form1.stop.value;
+
+	if(str=="") return(-1);
+	if(isNaN(str) || !(Number(str)>0) ){
+		alert("Need positive integer for\n" +
+				"Stop after ____ instructions.");
+		return(-2);
+	}
+	return(Number(str));
+}
+
+
+
+
+function recordRegisterVals(arr){
+// Record numbers from form1.registerValues.value into arr
+// register values assumed to be comma-separated
+// arr[0] not used
+// record actions in outStr
+
+	var str=form1.registerValues.value;
+	var len; // holds length of str
+	var r; // index for arr
+	var i,j,temp;
+
+	if(str=="") return;
+//	outStr += "Input: "
+	str=removeSpaces(str);
+	str+="," // adhoc: so slice will work for last value
+	len=str.length;
+
+	for(i=0,r=1; i<len; ){
+		if(isNaN(str.charAt(i))){
+			alert("Error in Initial register values: " +
+					"non-digit found where digit expected.")
+			return;
+			}
+		j=findNextNonDigit(str,i);
+		arr[r]=temp=Number(str.slice(i,j)); // record register value
+		outStr += "R" + r + "=" + temp + "; "
+		r++;
+		i=j+1; // set i to one after the comma
+	}
+//	outStr += "\n\n"
+
+}
+
+
+
+
+
+
+function removeSpaces(str){
+// Removes all spaces from str
+// does not remove tabs or newlines
+
+	str=str.replace(/ /g,"");
+	str=str.replace(/\n/g,"");
+	str=str.replace(/\r/g,"");
+	str=str.replace(/\t/g,"");
+	return(str);
+}
+
+
+
+
+
+
+
+function findNextNonDigit(str,beg){
+// finds next non-digit character in str after beg
+// Assumes there is a digit char at str[beg].
+// Assumes there eventually is a non-digit char before passing end of str.
+
+
+	var end=beg;
+	while(! isNaN(str.charAt(end))){
+		end++;
+	}
+	return(end);
+
+}
+
+
+
+
+
+
+
+
+
+
+
+function findLines(lines,progStr){
+// Find positions of all lines in progStr
+// and record in the array lines
+// lines[0] is unused
+// returns number of lines found
+
+
+	var pos=0;
+	var line=0;
+		while( (pos=findNextLine(progStr,pos)) != -1 ){
+	lines[++line]=pos;
+	}
+	return(line);
+}
+
+function findNextLine(str,pos){
+// starts searching at current position pos
+// until finds LINE_INDICATOR
+// then returns the position immediately after the found .
+
+	while(str.charAt(pos)!=LINE_INDICATOR){
+		if(pos >= str.length) return(-1);
+		pos++;
+
+	}
+	return(++pos);
+}
+
+
+function updateStopStatus(){
+// Enable or disable the stop text box
+// according to whether the checkStop button is
+// checked or not
+
+	if(form1.stopCheck.checked){
+		form1.stop.disabled=false;
+	}
+	else form1.stop.disabled=true;
+
+
+}
+
+
+
+
+
+
+
+function showExample(){
+// Display example in the INPUT column
+
+	form1.progtext.value =
+	   "1:DJNZ(2,1) \n" +
+	   "2:DJNZ(3,2) \n" +
+	   "3:INC(3) \n" +
+		"4:DJNZ(1,3) \n" +
+		"5:INC(1) \n" +
+		"6:INC(2) \n" +
+		"7:DJNZ(3,5)" +
+		"\n\n\nThis copies register 1 into register 2." +
+		"\nR2 <- R1 \n" +
+		"\nClick Run to see output.";
+
+	form1.registerValues.value="5, 8" ;
+	return;
+
+}
+
+</script><style type="text/css"></style></head>
+
+
+
+
+
+
+<body bgcolor="#EEEEEE">
+
+<h1 align="center"><font color="#000000">Counter Machine Simulator<br>
+</font></h1>
+
+<form name="form1">
+
+  <table border="1" cellpadding="4" cellspacing="0" align="center">
+    <tbody><tr>
+      <td bgcolor="#B0C8D0">
+      <p align="center"><b>INPUT</b>
+      </p></td>
+     <td valign="top" bgcolor="#B0C8D0">
+
+  <p align="center"><b>OUTPUT</b>
+
+
+      </p></td>
+    </tr>
+    <tr>
+      <td valign="top" align="left" bgcolor="#CAD5DB">
+      CM program:&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      <input type="button" value="Example" onclick="showExample()"><br>
+      <textarea name="progtext" rows="16" cols="40" onchange="form1.continueButton.disabled=true" autocomplete="off"></textarea>
+      <p>Initial register values:<br>
+      <input type="text" name="registerValues" size="30">
+      </p>
+      <p>Show register values after each instruction:<br>
+      <input type="radio" value="Y" name="showRegisters" checked="">Yes
+      (slower)&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      <input type="radio" value="N" name="showRegisters">No
+      (faster)
+      </p>
+      <p>Stop after
+      <input type="text" name="stop" size="5"> instructions (optional).<br>
+  <br>
+  <input type="button" value="Run" onclick="initializeVars(); runSim()">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+      <input type="button" name="continueButton" value="Continue" onclick="runSim()" disabled="">&nbsp;&nbsp;&nbsp;
+      &nbsp; <input type="reset" value="Reset" name="B1">
+      </p>
+      </td>
+     <td valign="top" align="left" bgcolor="#BCC0CF">
+
+  &nbsp;
+  <textarea name="progoutput" rows="30" cols="30">  </textarea>
+
+
+      </td>
+    </tr>
+  </tbody></table>
+
+</form>
+
+<p align="center">
+<a href="http://sites.oxy.edu/rnaimi//home/URMsim.htm">This simulator is a fork of URM Simulator</a>
+</p>
+
+<iframe frameborder="0" scrolling="no" style="border: 0px; display: none; background-color: transparent;"></iframe><div id="GOOGLE_INPUT_CHEXT_FLAG" style="display: none;" input="" input_stat="{&quot;tlang&quot;:true,&quot;tsbc&quot;:true,&quot;pun&quot;:true,&quot;mk&quot;:false,&quot;ss&quot;:true}"></div></body></html>
