@@ -121,7 +121,7 @@ function runSim() {
 			r=Number(progStr.slice(curPos,nextPos)); // the register number
 			if(R[r]==null) R[r]=0; // if not set yet, set to zero
 			R[r]+=1; // increment register r
-			if(true) outStr += curLine + ":R" + r + "=" + R[r] + "\n";
+			if(showRegs) outStr += curLine + ":R" + r + "=" + R[r] + "\n";
 			++curLine;
 		}
 		else if(progStr.substring(curPos,curPos+4)=="DJNZ"){
