@@ -248,7 +248,7 @@ function recordRegisterVals(arr){
 			}
 		j=findNextNonDigit(str,i);
 		arr[r]=temp=Number(str.slice(i,j)); // record register value
-		outStr += "R" + r + "=" + temp + "; "
+		//outStr += "R" + r + "=" + temp + "; "
 		r++;
 		i=j+1; // set i to one after the comma
 	}
